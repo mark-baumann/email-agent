@@ -128,6 +128,12 @@ The README also explains how to deploy the graph to LangGraph Platform.
 
 The full implementation of the Gmail integration is in [src/email_assistant/email_assistant_hitl_memory_gmail.py](/src/email_assistant/email_assistant_hitl_memory_gmail.py).
 
+### IMAP/SMTP Integration (one.com and other providers)
+
+To connect a regular IMAP/SMTP mailbox (e.g. a one.com account) instead of Gmail, follow the instructions in the [IMAP Tools README](src/email_assistant/tools/imap/README.md). No OAuth setup is required — only your email address, password, and server settings in `.env`.
+
+The full implementation of the IMAP integration is in [src/email_assistant/email_assistant_hitl_memory_imap.py](/src/email_assistant/email_assistant_hitl_memory_imap.py).
+
 ## Running Tests
 
 The repository includes an automated test suite to evaluate the email assistant. 

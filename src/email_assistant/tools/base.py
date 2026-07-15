@@ -1,13 +1,16 @@
 from typing import Dict, List, Callable, Any, Optional
 from langchain_core.tools import BaseTool
 
-def get_tools(tool_names: Optional[List[str]] = None, include_gmail: bool = False) -> List[BaseTool]:
+def get_tools(tool_names: Optional[List[str]] = None, include_gmail: bool = False, include_imap: bool = False) -> List[BaseTool]:
     """Get specified tools or all tools if tool_names is None.
-    
+
     Args:
         tool_names: Optional list of tool names to include. If None, returns all tools.
         include_gmail: Whether to include Gmail tools. Defaults to False.
-        
+        include_imap: Whether to include IMAP/SMTP tools (e.g. for one.com accounts).
+            Defaults to False. Mutually exclusive with include_gmail, as both
+            register tools under the same names.
+
     Returns:
         List of tool objects
     """
@@ -43,7 +46,23 @@ def get_tools(tool_names: Optional[List[str]] = None, include_gmail: bool = Fals
         except ImportError:
             # If Gmail tools aren't available, continue without them
             pass
-    
+
+    # Add IMAP/SMTP tools if requested
+    if include_imap:
+        from email_assistant.tools.imap.imap_tools import (
+            fetch_emails_tool,
+            send_email_tool,
+            check_calendar_tool,
+            schedule_meeting_tool
+        )
+
+        all_tools.update({
+            "fetch_emails_tool": fetch_emails_tool,
+            "send_email_tool": send_email_tool,
+            "check_calendar_tool": check_calendar_tool,
+            "schedule_meeting_tool": schedule_meeting_tool,
+        })
+
     if tool_names is None:
         return list(all_tools.values())
     
