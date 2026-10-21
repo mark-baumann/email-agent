@@ -134,6 +134,63 @@ To connect a regular IMAP/SMTP mailbox (e.g. a one.com account) instead of Gmail
 
 The full implementation of the IMAP integration is in [src/email_assistant/email_assistant_hitl_memory_imap.py](/src/email_assistant/email_assistant_hitl_memory_imap.py).
 
+## Lokale Postfach-Oberfläche
+
+Für den Raspberry Pi und `email-agent.markb.de`: [Deployment-Anleitung](deploy/pi/README.md).
+Die UI bietet pro E-Mail einen Input-Export als YAML und kopierbares JSON für
+LangSmith Studio (unter „Input für LangSmith / Studio“).
+
+Die eigene Oberfläche verbindet sich mit dem IMAP-Assistenten und benötigt keinen
+LangSmith-Key. Zugangsdaten bleiben in `.env` auf dem Rechner.
+
+Zum Starten beider Dienste und Öffnen des Browsers reicht im Projektordner:
+
+```powershell
+.\Start-Inbox.cmd
+```
+
+Alternativ kann `Start-Inbox.cmd` per Doppelklick gestartet werden. Die
+PowerShell-Ausführungsrichtlinie wird nur für diesen Starter-Prozess gesetzt;
+die Systemeinstellungen bleiben erhalten.
+
+Der Starter verwendet bereits laufende Dienste. Neue Dienste laufen im
+Hintergrund; ihre Prozessnummern werden ausgegeben, Logs liegen in `.inbox-logs`.
+`Stop-Process -Id <Prozessnummer>` beendet einen so gestarteten Dienst.
+
+Alternativ starte im Projektordner in zwei PowerShell-Terminals:
+
+```powershell
+$env:PYTHONUTF8='1'
+.\.venv\Scripts\langgraph.exe dev --config langgraph.imap.json --no-browser
+```
+
+```powershell
+$env:PYTHONUTF8='1'
+.\.venv\Scripts\python.exe -m email_assistant.inbox
+```
+
+Öffne **http://127.0.0.1:8080**. Während die Oberfläche läuft, ruft sie alle
+30 Sekunden ungelesene Mails der letzten 24 Stunden ab. Der Abruf läuft auch bei
+geschlossenem Browser weiter, solange der Python-Prozess läuft. Eigene Testmails
+können in der Seitenleiste eingeschaltet werden. Die Ansicht aktualisiert sich
+alle fünf Sekunden und zeigt bis zu 100 Threads.
+
+Bereits importierte Nachrichten werden anhand ihrer Message-ID erkannt; jeder
+neue Eingang erhält einen eigenen Vorgang. Die lokale Importliste liegt in
+`.local-inbox.sqlite3`. Auch Automatik und Testmodus bleiben nach einem Neustart
+erhalten. Beim allerersten Start ist die Automatik an und der Testmodus aus.
+
+Antworten und Termine warten auf **Freigeben & senden** bzw. **Einladung senden**.
+Entwürfe können vorher bearbeitet oder mit Feedback zurückgegeben werden.
+Die Oberfläche ist nur lokal gebunden. Für die ausführliche Fehlersuche steht
+weiterhin der Studio-Link zur Verfügung.
+
+Prüfung ohne echte E-Mails oder Modellaufrufe:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/test_inbox.py -q
+```
+
 ## Running Tests
 
 The repository includes an automated test suite to evaluate the email assistant. 

@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.11, <3.14"
 resolution-markers = [
     "python_full_version >= '3.13'",
@@ -16,6 +16,7 @@ dependencies = [
     { name = "google-auth-httplib2" },
     { name = "google-auth-oauthlib" },
     { name = "html2text" },
+    { name = "httpx" },
     { name = "jupyter" },
     { name = "langchain" },
     { name = "langchain-core" },
@@ -29,7 +30,10 @@ dependencies = [
     { name = "pytest" },
     { name = "pytest-xdist" },
     { name = "python-dotenv" },
+    { name = "pyyaml" },
     { name = "rich" },
+    { name = "starlette" },
+    { name = "uvicorn" },
 ]
 
 [package.optional-dependencies]
@@ -44,6 +48,7 @@ requires-dist = [
     { name = "google-auth-httplib2" },
     { name = "google-auth-oauthlib" },
     { name = "html2text" },
+    { name = "httpx", specifier = ">=0.27" },
     { name = "jupyter", specifier = ">=1.0.0" },
     { name = "langchain", specifier = ">=1.0.0" },
     { name = "langchain-core", specifier = ">=1.0.0" },
@@ -58,8 +63,11 @@ requires-dist = [
     { name = "pytest" },
     { name = "pytest-xdist" },
     { name = "python-dotenv" },
+    { name = "pyyaml", specifier = ">=6.0" },
     { name = "rich" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.6.1" },
+    { name = "starlette", specifier = ">=0.40" },
+    { name = "uvicorn", specifier = ">=0.30" },
 ]
 provides-extras = ["dev"]
 

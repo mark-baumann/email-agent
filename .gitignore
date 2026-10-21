@@ -60,3 +60,5 @@ htmlcov/
 .env.test.local
 .env.production.local
 .langgraph_api
+.local-inbox.sqlite3
+.inbox-logs/

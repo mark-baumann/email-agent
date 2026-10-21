@@ -1,0 +1,8 @@
+# Add this site block to /etc/caddy/Caddyfile.
+# Replace REPLACE_WITH_BCRYPT_HASH with the output of: caddy hash-password
+email-agent.markb.de {
+    basic_auth {
+        mark REPLACE_WITH_BCRYPT_HASH
+    }
+    reverse_proxy 127.0.0.1:8080
+}

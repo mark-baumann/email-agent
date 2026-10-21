@@ -22,6 +22,10 @@ dependencies = [
     "pyppeteer",
     "html2text",
     "rich",
+    "starlette>=0.40",
+    "uvicorn>=0.30",
+    "httpx>=0.27",
+    "PyYAML>=6.0",
 ]
 
 [project.optional-dependencies]
@@ -38,7 +42,7 @@ packages = ["email_assistant"]
 "email_assistant" = "src/email_assistant"
 
 [tool.setuptools.package-data]
-"*" = ["py.typed"]
+"*" = ["py.typed", "inbox.html"]
 
 [tool.ruff]
 lint.select = [

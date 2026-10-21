@@ -1,0 +1,18 @@
+[Unit]
+Description=Email assistant inbox UI and automatic IMAP polling
+After=email-agent.service
+Wants=email-agent.service
+
+[Service]
+Type=simple
+WorkingDirectory=%h/email-agent
+Environment=PYTHONUTF8=1
+ExecStart=%h/email-agent/.venv/bin/python -m email_assistant.inbox
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=60
+UMask=0077
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target
