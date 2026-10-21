@@ -1,0 +1,8 @@
+{
+  "graphs": {
+    "email_assistant_hitl_memory_imap": "./src/email_assistant/email_assistant_hitl_memory_imap.py:email_assistant"
+  },
+  "python_version": "3.11",
+  "env": ".env",
+  "dependencies": ["."]
+}

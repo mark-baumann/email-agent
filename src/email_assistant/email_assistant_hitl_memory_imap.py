@@ -1,6 +1,6 @@
 from typing import Literal
 
-from langchain.chat_models import init_chat_model
+from email_assistant.models import create_chat_model
 
 from langgraph.graph import StateGraph, START, END
 from langgraph.store.base import BaseStore
@@ -21,11 +21,11 @@ tools = get_tools(["send_email_tool", "schedule_meeting_tool", "check_calendar_t
 tools_by_name = get_tools_by_name(tools)
 
 # Initialize the LLM for use with router / structured output
-llm = init_chat_model("openai:gpt-4.1", temperature=0.0)
-llm_router = llm.with_structured_output(RouterSchema) 
+llm = create_chat_model()
+llm_router = llm.with_structured_output(RouterSchema, method="function_calling")
 
 # Initialize the LLM, enforcing tool use (of any available tools) for agent
-llm = init_chat_model("openai:gpt-4.1", temperature=0.0)
+llm = create_chat_model()
 llm_with_tools = llm.bind_tools(tools, tool_choice="required")
 
 def get_memory(store, namespace, default_content=None):
@@ -67,7 +67,7 @@ def update_memory(store, namespace, messages):
     # Get the existing memory
     user_preferences = store.get(namespace, "user_preferences")
     # Update the memory
-    llm = init_chat_model("openai:gpt-4.1", temperature=0.0).with_structured_output(UserPreferences)
+    llm = create_chat_model().with_structured_output(UserPreferences, method="function_calling")
     result = llm.invoke(
         [
             {"role": "system", "content": MEMORY_UPDATE_INSTRUCTIONS.format(current_profile=user_preferences.value, namespace=namespace)},

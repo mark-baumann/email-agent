@@ -40,6 +40,22 @@ Set `IMAP_HOST`/`SMTP_HOST` (and ports) accordingly. For providers that
 require app passwords (e.g. GMX, web.de, iCloud), generate one and use it as
 `EMAIL_PASSWORD`.
 
+### Ollama Cloud instead of OpenAI
+
+The IMAP assistant supports direct Ollama Cloud access. Set these values in
+`.env` (an OpenAI key is not needed when using this provider):
+
+```dotenv
+MODEL_PROVIDER=ollama_cloud
+OLLAMA_API_KEY=your_ollama_api_key
+OLLAMA_MODEL=gpt-oss:120b
+```
+
+Create a key at https://ollama.com/settings/keys. No local Ollama installation
+is required. Email content and feedback are sent to the selected model provider.
+The selected model must support tool calling. To switch back, set
+`MODEL_PROVIDER=openai` and configure `OPENAI_API_KEY` (optionally `OPENAI_MODEL`).
+
 ## 2. Test the connection
 
 ```bash
@@ -54,7 +70,7 @@ last 24 hours.
 Start the LangGraph server:
 
 ```bash
-langgraph dev
+langgraph dev --config langgraph.imap.json
 ```
 
 Then ingest recent unread emails into the `email_assistant_hitl_memory_imap`
