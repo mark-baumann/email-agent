@@ -1,0 +1,10 @@
+# HTTPS and login for the inbox UI on Windows.
+# Install-EmailAgent.ps1 starts Caddy with exactly this file.
+# Replace REPLACE_WITH_BCRYPT_HASH with the output of: caddy hash-password
+# Replace the domain if you use a different one.
+email-agent.markb.de {
+    basic_auth {
+        mark REPLACE_WITH_BCRYPT_HASH
+    }
+    reverse_proxy 127.0.0.1:8080
+}

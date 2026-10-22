@@ -136,7 +136,9 @@ The full implementation of the IMAP integration is in [src/email_assistant/email
 
 ## Lokale Postfach-Oberfläche
 
-Für den Raspberry Pi und `email-agent.markb.de`: [Deployment-Anleitung](deploy/pi/README.md).
+Für den Dauerbetrieb unter `email-agent.markb.de`:
+[Windows-Anleitung](deploy/windows/README.md) oder
+[Raspberry Pi](deploy/pi/README.md).
 Die UI bietet pro E-Mail einen Input-Export als YAML und kopierbares JSON für
 LangSmith Studio (unter „Input für LangSmith / Studio“).
 
