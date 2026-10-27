@@ -1,8 +1,9 @@
 # Raspberry Pi: email-agent.markb.de
 
 Vorbereitet für Raspberry Pi OS **64 Bit**, Python 3.11–3.13 und einen Pi mit
-Internetzugang. Die Dienste laufen unter deinem normalen Benutzer. Noch nicht
-auf einem echten Pi getestet oder auf der Domain aktiviert.
+Internetzugang. Die Dienste laufen unter deinem normalen Benutzer. Auf einem
+Raspberry Pi 4 (Raspberry Pi OS 64 Bit, aarch64) eingerichtet und dort
+geprüft; die Veröffentlichung unter der Domain beschreibt Abschnitt 3.
 
 ## 1. Repository und Zugangsdaten
 
@@ -43,8 +44,12 @@ cp deploy/pi/email-agent.service deploy/pi/email-inbox.service ~/.config/systemd
 systemctl --user daemon-reload
 systemctl --user enable --now email-agent.service email-inbox.service
 sudo loginctl enable-linger "$USER"
-curl -fsS http://127.0.0.1:8080/api/status
+curl -fsS http://127.0.0.1:${INBOX_PORT:-8080}/api/status
 ```
+
+Mit gesetztem `INBOX_PASSWORD` braucht `/api/status` die Anmeldung
+(`-u mark:PASSWORT`); der LangGraph-Server antwortet unter
+`http://127.0.0.1:2024/ok`. Der Start des Agenten dauert rund eine halbe Minute.
 
 `connected: true` bestätigt den Agenten. `error: null` nach dem ersten Abruf
 bestätigt den Postfachzugriff. Ein Benutzer-Dienst läuft durch `enable-linger`
@@ -59,6 +64,45 @@ Für Mails an dich selbst in der UI „Eigene Testmails einbeziehen“ einschalt
 Die Einstellungen werden in `.local-inbox.sqlite3` gespeichert.
 
 ## 3. HTTPS und Anmeldung
+
+Zwei Wege. **A** gilt für einen Pi, auf dem schon ein Cloudflare-Tunnel läuft
+(so ist `email-agent.markb.de` eingerichtet); **B** für einen Pi, der die Ports
+80/443 selbst aus dem Router bekommt.
+
+### A. Hinter einem vorhandenen Cloudflare-Tunnel
+
+Der Tunnel läuft als Container und erreicht Dienste auf dem Pi über das
+Gateway des Docker-Netzes (`docker network inspect <netz>`, dort `Gateway`,
+z. B. `172.19.0.1`). Die UI muss dafür über Loopback hinaus lauschen und wird
+dann von ihrer eigenen Anmeldung geschützt — in `.env`:
+
+```dotenv
+INBOX_HOST=0.0.0.0
+INBOX_PORT=8081
+INBOX_USER=mark
+INBOX_PASSWORD=<langes Passwort>
+INBOX_ALLOWED_HOSTS=127.0.0.1,localhost,172.19.0.1,email-agent.markb.de
+```
+
+`INBOX_PORT` nur frei wählen, wenn 8080 schon belegt ist (`ss -ltn`); auf
+diesem Pi hält Traefik den Port. Ohne `INBOX_PASSWORD` startet die UI bei
+`INBOX_HOST` ≠ Loopback absichtlich nicht. Prüfen:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8081/            # 401
+curl -s -o /dev/null -w '%{http_code}\n' -u mark:PASSWORT http://127.0.0.1:8081/   # 200
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8081/api/health  # 200, ohne Anmeldung
+```
+
+Im Cloudflare-Tunnel dann einen Public Hostname `email-agent.markb.de` →
+`HTTP` → `172.19.0.1:8081` anlegen; Cloudflare erzeugt den DNS-Eintrag und das
+Zertifikat. Bei einem per Token verwalteten Tunnel geschieht das im
+Zero-Trust-Dashboard oder über die API — die Datei `cloudflared/config.yml`
+auf dem Pi wird dabei **nicht** gelesen. Ports 8081 und 2024 bleiben intern;
+nichts im Router freigeben. `/api/health` bleibt offen, damit Tunnel- und
+Container-Prüfungen kein Passwort brauchen.
+
+### B. Caddy direkt auf dem Pi
 
 Installiere Caddy nach der [offiziellen Debian/Raspbian-Anleitung](https://caddyserver.com/docs/install#debian-ubuntu-raspbian).
 Erzeuge auf dem Pi einen Passwort-Hash:

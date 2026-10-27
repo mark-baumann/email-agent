@@ -11,7 +11,7 @@ import yaml
 
 from starlette.testclient import TestClient
 
-from email_assistant.inbox import Inbox, TOKEN, app, pending, studio_input
+from email_assistant.inbox import HEALTH_PATH, BasicAuth, Inbox, TOKEN, app, pending, studio_input
 
 
 def test_poll_deduplicates_messages_and_recovers_existing_runs():
@@ -93,6 +93,19 @@ def test_pending_and_email_html_are_not_executed_in_the_ui():
     assert "frame-ancestors 'none'" in response.headers["content-security-policy"]
     assert ".innerHTML" not in response.text
     assert "__CSRF_TOKEN__" not in response.text
+
+
+def test_password_closes_the_ui_but_leaves_the_health_probe_open():
+    guarded = TestClient(BasicAuth(app, "mark", "secret"))
+    assert guarded.get(HEALTH_PATH).status_code == 200
+    unauthorized = guarded.get("/")
+    assert unauthorized.status_code == 401
+    assert unauthorized.headers["www-authenticate"].startswith("Basic ")
+    assert guarded.get("/", auth=("mark", "wrong")).status_code == 401
+    assert guarded.get("/", auth=("other", "secret")).status_code == 401
+    # A malformed header must not crash the comparison.
+    assert guarded.get("/", headers={"Authorization": b"Basic \xe4"}).status_code == 401
+    assert guarded.get("/", auth=("mark", "secret")).status_code == 200
 
 
 def test_settings_survive_restart():

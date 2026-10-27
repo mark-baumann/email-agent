@@ -4,6 +4,7 @@ Run with: python -m email_assistant.inbox
 """
 
 import asyncio
+import base64
 import contextlib
 import html
 import json
@@ -31,6 +32,9 @@ GRAPH = "email_assistant_hitl_memory_imap"
 API = os.getenv("INBOX_AGENT_URL", "http://127.0.0.1:2024")
 TOKEN = secrets.token_urlsafe(32)
 DATABASE = Path(os.getenv("INBOX_DATABASE", ".local-inbox.sqlite3"))
+# The health endpoint stays open so a container probe does not need the password.
+HEALTH_PATH = "/api/health"
+LOOPBACK = frozenset({"127.0.0.1", "localhost", "::1"})
 
 
 def studio_input(values):
@@ -172,6 +176,11 @@ async def home(request):
     })
 
 
+async def health(request):
+    """Answer container and proxy probes without requiring the password."""
+    return JSONResponse({"status": "ok"}, headers={"Cache-Control": "no-store"})
+
+
 async def status(request):
     inbox = request.app.state.inbox
     connected = False
@@ -287,15 +296,50 @@ async def api_error(request, exc):
     return JSONResponse({"error": str(exc)}, status_code=502 if isinstance(exc, httpx.HTTPError) else 400)
 
 
+class BasicAuth:
+    """Require HTTP basic auth, so the inbox stays closed when it is reachable from outside."""
+
+    def __init__(self, app, user, password):
+        self.app = app
+        self.expected = b"Basic " + base64.b64encode(f"{user}:{password}".encode())
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http" or scope["path"] == HEALTH_PATH:
+            await self.app(scope, receive, send)
+            return
+        offered = b""
+        for name, value in scope["headers"]:
+            if name == b"authorization":
+                offered = value
+                break
+        if secrets.compare_digest(offered, self.expected):
+            await self.app(scope, receive, send)
+            return
+        await Response("Anmeldung erforderlich", status_code=401, headers={
+            "WWW-Authenticate": 'Basic realm="Email agent inbox", charset="UTF-8"',
+            "Cache-Control": "no-store",
+        })(scope, receive, send)
+
+
 app = Starlette(lifespan=lifespan, routes=[
     Route("/", home), Route("/api/status", status), Route("/api/threads", threads),
+    Route(HEALTH_PATH, health),
     Route("/api/threads/{thread}/input.{format}", export_input),
     Route("/api/threads/{thread}", detail), Route("/api/{operation}", mutate, methods=["POST"]),
 ], exception_handlers={httpx.HTTPError: api_error, ValueError: api_error, KeyError: api_error})
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=[
     host.strip() for host in os.getenv("INBOX_ALLOWED_HOSTS", "127.0.0.1,localhost,testserver").split(",")
 ])
+if os.getenv("INBOX_PASSWORD"):
+    app.add_middleware(BasicAuth, user=os.getenv("INBOX_USER", "inbox"), password=os.environ["INBOX_PASSWORD"])
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=int(os.getenv("INBOX_PORT", "8080")))
+    host = os.getenv("INBOX_HOST", "127.0.0.1")
+    # Binding beyond loopback publishes a UI that can read mail and send replies.
+    if host not in LOOPBACK and not os.getenv("INBOX_PASSWORD"):
+        raise SystemExit(
+            f"INBOX_HOST={host} macht die Oberfläche über dieses Gerät hinaus erreichbar. "
+            "Bitte INBOX_PASSWORD setzen (oder einen Reverse-Proxy mit Anmeldung davorsetzen)."
+        )
+    uvicorn.run(app, host=host, port=int(os.getenv("INBOX_PORT", "8080")))
