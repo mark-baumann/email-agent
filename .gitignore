@@ -62,3 +62,4 @@ htmlcov/
 .langgraph_api
 .local-inbox.sqlite3
 .inbox-logs/
+.inbox-password.txt
