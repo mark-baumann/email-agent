@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Literal
 
 from email_assistant.models import create_chat_model
@@ -88,8 +89,9 @@ def triage_router(state: State, store: BaseStore) -> Command[Literal["triage_int
     
     # Parse the email input
     author, to, subject, email_thread, email_id = parse_gmail(state["email_input"])
+    # Very long (HTML) mails make the router model return no tool call; triage needs only the start.
     user_prompt = triage_user_prompt.format(
-        author=author, to=to, subject=subject, email_thread=email_thread
+        author=author, to=to, subject=subject, email_thread=email_thread[:6000]
     )
 
     # Create email markdown for Agent Inbox in case of notification  
@@ -104,16 +106,19 @@ def triage_router(state: State, store: BaseStore) -> Command[Literal["triage_int
         triage_instructions=triage_instructions,
     )
 
-    # Run the router LLM
-    result = llm_router.invoke(
-        [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ]
-    )
-
-    # Decision
-    classification = result.classification
+    # Run the router LLM. Some models occasionally return no structured output:
+    # retry once, then fall back to "notify" so the user still sees the mail.
+    classification = "notify"
+    for _ in range(2):
+        result = llm_router.invoke(
+            [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ]
+        )
+        if result is not None and result.classification in ("respond", "ignore", "notify"):
+            classification = result.classification
+            break
 
     # Process the classification decision
     if classification == "respond":
@@ -122,7 +127,7 @@ def triage_router(state: State, store: BaseStore) -> Command[Literal["triage_int
         goto = "response_agent"
         # Update the state
         update = {
-            "classification_decision": result.classification,
+            "classification_decision": classification,
             "messages": [{"role": "user",
                             "content": f"Respond to the email: {email_markdown}"
                         }],
@@ -240,7 +245,9 @@ def llm_call(state: State, store: BaseStore):
                         background=default_background,
                         response_preferences=response_preferences, 
                         cal_preferences=cal_preferences
-                    )}
+                    ) + "\n< Current date >\nToday is " + datetime.now().strftime("%A, %Y-%m-%d")
+                    + ". Resolve relative dates (e.g. 'next Tuesday') from this date; the "
+                    "prompt's earlier date reference may be stale.\n</ Current date >"}
                 ]
                 + state["messages"]
             )

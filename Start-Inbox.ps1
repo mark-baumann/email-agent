@@ -34,7 +34,7 @@ if (-not (Test-Endpoint 'http://127.0.0.1:2024/ok')) {
     Write-Host 'Starte E-Mail-Agent ...'
     $taskConfig = Join-Path $PSScriptRoot 'langgraph.imap.json'
     $taskAgent = Start-Process -FilePath $taskLanggraph -WindowStyle Hidden -PassThru `
-        -ArgumentList ('dev --config "{0}" --no-browser' -f $taskConfig) `
+        -ArgumentList ('dev --config "{0}" --no-browser --no-reload --n-jobs-per-worker 4' -f $taskConfig) `
         -WorkingDirectory $PSScriptRoot `
         -RedirectStandardOutput (Join-Path $taskLogs 'agent.log') `
         -RedirectStandardError (Join-Path $taskLogs 'agent-error.log')

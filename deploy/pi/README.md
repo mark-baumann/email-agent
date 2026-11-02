@@ -59,7 +59,8 @@ auch nach dem SSH-Logout und nach einem Neustart.
 journalctl --user -u email-agent -u email-inbox -f
 ```
 
-Die UI ruft alle 30 Sekunden ungelesene Mails der letzten 24 Stunden ab.
+Die UI ruft alle 30 Sekunden Mails (auch bereits gelesene) der letzten
+`INBOX_SYNC_DAYS` Tage ab (Standard 1; `36500` importiert das ganze Postfach).
 Für Mails an dich selbst in der UI „Eigene Testmails einbeziehen“ einschalten.
 Die Einstellungen werden in `.local-inbox.sqlite3` gespeichert.
 

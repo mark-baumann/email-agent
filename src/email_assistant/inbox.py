@@ -35,6 +35,8 @@ DATABASE = Path(os.getenv("INBOX_DATABASE", ".local-inbox.sqlite3"))
 # The health endpoint stays open so a container probe does not need the password.
 HEALTH_PATH = "/api/health"
 LOOPBACK = frozenset({"127.0.0.1", "localhost", "::1"})
+# How far back to import mails; set a large value (e.g. 36500) to import the whole inbox.
+SYNC_DAYS = float(os.getenv("INBOX_SYNC_DAYS", "1"))
 
 
 def studio_input(values):
@@ -95,11 +97,15 @@ class Inbox:
                 config = load_imap_config()
                 emails = await asyncio.to_thread(
                     lambda: list(fetch_group_emails(
-                        minutes_since=24 * 60, skip_filters=self.include_self,
+                        # Include read mails: messages opened on another device must
+                        # still reach the agent. The imported table prevents duplicates.
+                        minutes_since=int(SYNC_DAYS * 24 * 60), include_read=True,
+                        skip_filters=self.include_self,
                         config=config,
                     ))
                 )
-                for mail in emails:
+                # Newest first, so recent mails reach the agent before the backlog.
+                for mail in reversed(emails):
                     if mail.get("user_respond"):
                         continue
                     key = config.email_address.lower() + ":" + mail["id"]
@@ -197,7 +203,12 @@ async def status(request):
 
 async def threads(request):
     inbox = request.app.state.inbox
-    rows = await inbox.api("POST", "/threads/search", json={"limit": 100})
+    rows = []
+    while True:  # The API caps limit at 1000, so page through all threads.
+        page = await inbox.api("POST", "/threads/search", json={"limit": 1000, "offset": len(rows)})
+        rows += page
+        if len(page) < 1000:
+            break
     # Only include threads belonging to this email graph (including Studio imports).
     rows = [row for row in rows if row.get("metadata", {}).get("graph_id") == GRAPH
             or row.get("metadata", {}).get("source") == "local-inbox"
