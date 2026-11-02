@@ -23,6 +23,7 @@ import email.utils
 import imaplib
 import logging
 import os
+import re
 import smtplib
 import ssl
 import uuid
@@ -34,6 +35,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Any, Dict, Iterator, List, Optional
 
+import html2text
 from dotenv import load_dotenv
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
@@ -128,7 +130,7 @@ def extract_message_body(msg: Message) -> str:
             return payload.decode("utf-8", errors="replace")
 
     if not msg.is_multipart():
-        return _decode_part(msg)
+        return _html_to_text(_decode_part(msg))
 
     plain_parts: List[str] = []
     html_parts: List[str] = []
@@ -145,10 +147,24 @@ def extract_message_body(msg: Message) -> str:
             html_parts.append(_decode_part(part))
 
     if plain_parts:
-        return "\n".join(plain_parts)
+        return _html_to_text("\n".join(plain_parts))
     if html_parts:
-        return "\n".join(html_parts)
+        return _html_to_text("\n".join(html_parts))
     return ""
+
+
+_HTML_TAG = re.compile(r"<\s*/?\s*(html|body|div|p|br|table|td|tr|span|font|a|b|li|h[1-6])\b", re.I)
+
+
+def _html_to_text(text: str) -> str:
+    """Convert HTML mail bodies to readable text for the agent and the inbox UI."""
+    if not text or not _HTML_TAG.search(text):
+        return text
+    converter = html2text.HTML2Text()
+    converter.ignore_images = True
+    converter.ignore_links = True
+    converter.body_width = 0
+    return re.sub(r"\n{3,}", "\n\n", converter.handle(text)).strip()
 
 
 def _parse_message(raw_bytes: bytes, uid: str) -> Dict[str, Any]:

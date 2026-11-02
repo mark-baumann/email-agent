@@ -151,6 +151,7 @@ ssh -N -L 2024:127.0.0.1:2024 USER@PI
 
 Auf deinem Rechner darf dann kein anderer Dienst Port 2024 belegen. Anschließend
 [Studio öffnen](https://smith.langchain.com/studio/?baseUrl=http://127.0.0.1:2024).
+Unter Windows erledigt `Start-Studio-Pi.cmd` Tunnel und Studio-Start in einem Schritt.
 Tracing nach LangSmith bleibt optional und benötigt einen gültigen Key in `.env`.
 
 ## 5. Updates und Grenzen

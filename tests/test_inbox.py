@@ -143,3 +143,38 @@ def test_studio_exports_preserve_original_input_without_internal_state():
     assert "attachment" in yaml_response.headers["content-disposition"]
     assert yaml_response.headers["cache-control"] == "no-store"
     assert "not exported" not in yaml_response.text
+
+
+def test_failed_runs_are_retried_with_backoff():
+    async def scenario():
+        with tempfile.TemporaryDirectory() as directory:
+            inbox = Inbox(Path(directory) / "inbox.sqlite3")
+            created = []
+            mail = {"from": "a@example.org", "to": "me@example.org", "subject": "Hi", "body": "x", "id": "<1>"}
+
+            async def api(method, path, **kwargs):
+                if path == "/threads/search":
+                    return [{"thread_id": "t1", "values": {"email_input": mail}},
+                            {"thread_id": "t2", "values": {}}]  # no input: never retried
+                if method == "GET" and path.endswith("/runs"):
+                    return [{"status": "error"}]
+                created.append((path, kwargs["json"]))
+                return {}
+
+            inbox.api = api
+            try:
+                assert await inbox.retry_failed() == 1
+                assert created == [("/threads/t1/runs", {"assistant_id": "email_assistant_hitl_memory_imap",
+                                                         "input": {"email_input": mail}, "multitask_strategy": "reject"})]
+                # Backoff: an immediate second poll does not retry again.
+                assert await inbox.retry_failed() == 0
+            finally:
+                await inbox.client.aclose()
+    asyncio.run(scenario())
+
+
+def test_html_mail_bodies_become_text():
+    from email_assistant.tools.imap.imap_tools import _html_to_text
+    text = _html_to_text("<div>Hallo <b>Mark</b></div><div><br></div><p>Gruß</p>")
+    assert "<" not in text and "Hallo" in text and "Gruß" in text
+    assert _html_to_text("a < b, plain text") == "a < b, plain text"

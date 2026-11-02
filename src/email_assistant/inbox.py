@@ -11,6 +11,7 @@ import json
 import os
 import secrets
 import sqlite3
+import time
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -37,6 +38,10 @@ HEALTH_PATH = "/api/health"
 LOOPBACK = frozenset({"127.0.0.1", "localhost", "::1"})
 # How far back to import mails; set a large value (e.g. 36500) to import the whole inbox.
 SYNC_DAYS = float(os.getenv("INBOX_SYNC_DAYS", "1"))
+# Automatic retries of failed runs: few per poll, backoff 10 min doubling up to 6 h.
+RETRY_BATCH = 5
+RETRY_DELAY = 600
+RETRY_MAX_DELAY = 6 * 3600
 
 
 def studio_input(values):
@@ -61,6 +66,7 @@ class Inbox:
         with self.db() as db:
             db.execute("CREATE TABLE IF NOT EXISTS imported (id TEXT PRIMARY KEY, thread TEXT NOT NULL)")
             db.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+            db.execute("CREATE TABLE IF NOT EXISTS retries (thread TEXT PRIMARY KEY, attempts INTEGER NOT NULL, next_at REAL NOT NULL)")
             for key, value in db.execute("SELECT key, value FROM settings"):
                 if key in ("auto", "include_self"):
                     setattr(self, key, json.loads(value))
@@ -140,6 +146,42 @@ class Inbox:
                 raise
             return count
 
+    async def retry_failed(self):
+        """Restart failed threads (e.g. after a model rate limit) with exponential backoff."""
+        now = time.time()
+        with self.db() as db:
+            schedule = {t: (a, n) for t, a, n in db.execute("SELECT thread, attempts, next_at FROM retries")}
+        rows = []
+        while True:
+            page = await self.api("POST", "/threads/search", json={
+                "status": "error", "limit": 1000, "offset": len(rows),
+                "select": ["thread_id", "values"]})
+            rows += page
+            if len(page) < 1000:
+                break
+        started = 0
+        for row in rows:
+            mail = (row.get("values") or {}).get("email_input")
+            attempts, next_at = schedule.get(row["thread_id"], (0, 0))
+            if not mail or next_at > now:
+                continue
+            if started >= RETRY_BATCH:
+                break
+            thread = row["thread_id"]
+            runs = await self.api("GET", f"/threads/{thread}/runs")
+            if runs and runs[0]["status"] in ("pending", "running"):
+                continue
+            await self.api("POST", f"/threads/{thread}/runs", json={
+                "assistant_id": GRAPH, "input": {"email_input": mail},
+                "multitask_strategy": "reject",
+            })
+            attempts += 1
+            with self.db() as db:
+                db.execute("INSERT OR REPLACE INTO retries VALUES (?, ?, ?)", (
+                    thread, attempts, now + min(RETRY_DELAY * 2 ** (attempts - 1), RETRY_MAX_DELAY)))
+            started += 1
+        return started
+
     async def poll(self):
         while True:
             if self.auto:
@@ -147,6 +189,8 @@ class Inbox:
                     await self.sync()
                 except Exception:
                     pass  # The error is displayed in the UI; the next poll retries.
+                with contextlib.suppress(Exception):
+                    await self.retry_failed()
             await asyncio.sleep(30)
 
 
